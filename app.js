@@ -5,6 +5,7 @@ const bodyParser = require("body-parser");
 const _ = require("lodash");
 const mongoose = require("mongoose");
 const encrypt = require("mongoose-encryption");
+//const md5 = require("md5"); // to hash passwords with md5()
 
 const app = express();
 app.use(express.static("public"));
@@ -53,7 +54,8 @@ app.route("/login")
       res.send(err);
     } else {
       if (foundUser) {
-        console.log("The decrypted pwd is: " + foundUser.password);
+        //console.log("The decrypted pwd is: " + foundUser.password);
+        // if DB pwd (hashed) matches (Hash of) entered password
         if (foundUser.password === req.body.password) {
           res.render("members.ejs");
         } else {
