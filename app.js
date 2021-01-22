@@ -1,11 +1,13 @@
-require("dotenv").config(); // configure envmt variables .env file in this dir
+//require("dotenv").config(); // configure envmt variables .env file in this dir
 const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const _ = require("lodash");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
-//const md5 = require("md5"); // to hash passwords with md5()
+//const encrypt = require("mongoose-encryption");
+//const md5 = require("md5"); // to hash passwords with md5() on register and login
+const bcrypt = require("bcrypt"); // better hash fun with salt and multiple rounds
+const saltRounds = 11;  // the number of times the pwd is rehashed with the salt (rand) added
 
 const app = express();
 app.use(express.static("public"));
@@ -24,10 +26,10 @@ const userSchema = new mongoose.Schema({
 //are authenticated and then decrypted, https://www.npmjs.com/package/mongoose-encryption
 //For convenience, you can also pass in a single secret string instead of two keys
 // I wrote a Hai-ku, It was not a great hai-ku, but it was O K!
-const secretString = process.env.SECRET_STRING; // so it cannot be seen on gitHub
+//const secretString = process.env.SECRET_STRING; // so it cannot be seen on gitHub
 // encrypt pwd regardless of any other options. name and _id will be left unencrypted
 //userSchema.plugin(encrypt, { encryptionKey: encKey, signingKey: sigKey, encryptedFields: ['password'] });
-userSchema.plugin(encrypt, { secret: process.env.SECRET_STRING, encryptedFields: ['password'] });
+//userSchema.plugin(encrypt, { secret: process.env.SECRET_STRING, encryptedFields: ['password'] });
 
 const User = new mongoose.model("User", userSchema);
 const user0 = new User({
@@ -40,6 +42,8 @@ app.get("/", function(req, res){
   res.render("home.ejs");
 });
 
+///////////////////// Login Route /////////////////////////////////
+
 app.route("/login")
 
 .get(function(req, res){
@@ -47,22 +51,29 @@ app.route("/login")
 })
 
 .post(function(req, res){
-  console.log(req.body.username, req.body.password, '\n', req.body);
+  //console.log("Logging in user; ", req.body.username, " with entered p: ", req.body.password, '\n', req.body);
   User.findOne ( {email: req.body.username}, function(err, foundUser){
-    console.log(foundUser);
+    //console.log(foundUser);
     if (err) {
       res.send(err);
     } else {
       if (foundUser) {
         //console.log("The decrypted pwd is: " + foundUser.password);
         // if DB pwd (hashed) matches (Hash of) entered password
-        if (foundUser.password === req.body.password) {
-          res.render("members.ejs");
-        } else {
-          res.send("Sorry an account with that email and password does not exist(WP).");
-        }
+        bcrypt.compare(req.body.password, foundUser.password, function(err, result){
+          if (result === true){
+            res.render("members.ejs");
+          } else {
+            res.send("Sorry. Unable to connect to an account with that email and password(WP).");
+          }
+        })
+        // if (foundUser.password === md5(foundUser.password)) {
+        //   res.render("members.ejs");
+        // } else {
+        //   res.send("Sorry. Unable to connect to an account with that email and password(WP).");
+        // }
       } else {
-        res.send("Sorry an account with that email and password does not exist(WU).");
+        res.send("Sorry. Unable to connect to an account with that email and password(WU).");
       }
     }
     // if (req.body.username === userAcc.email && req.body.password === userAcc.password){
@@ -77,8 +88,10 @@ app.route("/login")
     // } else {
     //   "Something went wrong."
     // }
-  })
+  });
 });
+
+///////////////////// Register Route /////////////////////////////////
 
 app.route("/register")
 
@@ -87,30 +100,34 @@ app.route("/register")
 })
 
 .post(function(req, res){
-  console.log(req.body.username + req.body.password);
-  // if this user record is not in the DB then create it
-  let newUser = new User({
-    email: req.body.username,
-    password: req.body.password
+  //console.log("u: " + req.body.username + "  p: " + req.body.password);
+  // if this user record is not in the DB then create it, first hash pwd
+  bcrypt.hash(req.body.password, saltRounds, function(errorNotHandled, hash){
+    let newUser = new User({
+      email: req.body.username,
+      password: hash
+    })
+    User.findOne ( {email: req.body.username}, function(err, uName){
+      if (err) {
+        res.send(err);
+      } else if (uName) {
+        res.send("You have already registered. Please login.")
+        // res.redirect("/login"); // make app crash, after send cannot redirect
+      } else {
+        newUser.save(function(error){
+          if(!error){
+            // res.send("You have registered. You may now login.")
+            // res.redirect("/login");
+            // console.log("User registered with u: ", newUser.email, " and p: ", newUser.password);
+            res.render("members.ejs"); // no route for this page so can only reach it by registering
+          } else {
+            res.send(error);
+          }
+        });
+      }
+    }); // end find and save user acc
   })
-  User.findOne ( {email: req.body.username}, function(err, uName){
-    if (err) {
-      res.send(err);
-    } else if (uName) {
-      res.send("You have already registered. Please login.")
-      // res.redirect("/login"); // make app crash, after send cannot redirect
-    } else {
-      newUser.save(function(error){
-        if(!error){
-          // res.send("You have registered. You may now login.")
-          // res.redirect("/login");
-          res.render("members.ejs"); // no route for this page so can only reach it by registering
-        } else {
-          res.send(error);
-        }
-      });
-    }
-  })
+
 });
 
 
