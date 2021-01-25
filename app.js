@@ -35,6 +35,7 @@ mongoose.set('useCreateIndex', true); // to avoid deprecation warnings
 
 //var firstName = "";
 //var lastName = "";
+var theSecret = "";
 
 const userSchema = new mongoose.Schema({
   email: String,
@@ -42,7 +43,8 @@ const userSchema = new mongoose.Schema({
   googleId: String,
   googleFirstName: String,
   googleLastName: String,
-  facebookId: String
+  facebookId: String,
+  secret: String
 });                                                             // GOOGLE, FACEBOOK
 
 userSchema.plugin(passportLocalMongoose);                           // PASSPORT
@@ -71,8 +73,8 @@ passport.use(new GoogleStrategy({
     //userProfileURL: "https://www.googpleapis.com/oauth2/v3/userinfo"
   },
   function(accessToken, refreshToken, profile, cb){
-    console.log("After logging in via Google, then local authentication, user profile: ", profile);
-    console.log("Welcome ", profile.name.givenName);
+    //console.log("After logging in via Google, then local authentication, user profile: ", profile);
+    console.log("Welcome via Google,", profile.name.givenName);
     //firstName = profile.name.givenName; // would apply to all users generally
     //lastName = profile.name.familyName;
     User.findOrCreate({ googleId: profile.id, googleFirstName: profile.givenName, googleLastName: profile.familyName }, function (err, user){
@@ -104,7 +106,17 @@ app.get("/", function(req, res){
 
 app.get("/members", function(req, res){
   if (req.isAuthenticated()){
-    res.render("members.ejs");
+    User.find({"secret": {$ne: null}}, function(err, foundUsers) {
+      if(err){
+        console.log(err);
+      } else {
+        if (foundUsers){
+          console.log(foundUsers);
+          res.render("members.ejs", {usersWithSecrets: foundUsers});
+        }
+      }
+
+    });
   } else {
     res.redirect("/login");
   }
@@ -112,14 +124,32 @@ app.get("/members", function(req, res){
 
 ///////////////////// Submit Route /////////////////////////////////
 
-// app.get("/submit", function(req, res){
-//   if(req.isAuthenticated(){
-//     res.render("submit.ejs");
-//   } else {
-//     res.redirect("/login");
-//   }
-// )
-// });
+app.route("/submit")
+
+.get(function(req, res){
+  if(req.isAuthenticated()){
+    res.render("submit.ejs");
+  } else {
+    res.redirect("/login");
+  }
+})
+
+.post(function(req, res){
+  const submittedSecret = req.body.secret;
+  console.log(req.user.id);
+  User.findById(req.user.id, function(err, foundUser){
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(function(){
+          res.redirect("/members");
+        });
+      }
+    }
+  });
+});
 
 
 ///////////////////// Register Route /////////////////////////////////
