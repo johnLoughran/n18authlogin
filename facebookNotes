@@ -1,0 +1,11 @@
+response object that is provided to your callback by facebook is:
+{
+    status: 'connected',
+    authResponse: {
+        accessToken: '...',
+        expiresIn:'...',
+        signedRequest:'...',
+        userID:'...'
+    }
+}
+see dev .fb .c... for notes on this
